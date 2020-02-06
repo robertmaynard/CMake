@@ -66,10 +66,13 @@ public:
   void PrintLabels();
 
   void SetPassFailVectors(std::vector<std::string>* passed,
-                          std::vector<std::string>* failed)
+                          std::vector<std::string>* failed,
+                          std::vector<std::string>* skipped)
   {
     this->Passed = passed;
     this->Failed = failed;
+    this->Skipped = skipped;
+
   }
   void SetTestResults(std::vector<cmCTestTestHandler::cmCTestTestResult>* r)
   {
@@ -169,6 +172,7 @@ protected:
   std::map<int, std::string> TestOutput;
   std::vector<std::string>* Passed;
   std::vector<std::string>* Failed;
+  std::vector<std::string>* Skipped;
   std::vector<std::string> LastTestsFailed;
   std::set<std::string> LockedResources;
   std::map<int,

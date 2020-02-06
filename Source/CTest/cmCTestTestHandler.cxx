@@ -403,6 +403,7 @@ int cmCTestTestHandler::ProcessHandler()
   std::vector<std::string> passed;
   std::vector<std::string> failed;
 
+
   // start the real time clock
   auto clock_start = std::chrono::steady_clock::now();
 
@@ -1324,8 +1325,9 @@ void cmCTestTestHandler::ProcessDirectory(std::vector<std::string>& passed,
     tests[p.Index] = depends;
     properties[p.Index] = &p;
   }
+  std::vector<std::string> skipped;
   parallel->SetTests(tests, properties);
-  parallel->SetPassFailVectors(&passed, &failed);
+  parallel->SetPassFailVectors(&passed, &failed, &skipped);
   this->TestResults.clear();
   parallel->SetTestResults(&this->TestResults);
   parallel->CheckResourcesAvailable();

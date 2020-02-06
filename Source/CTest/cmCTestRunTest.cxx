@@ -65,7 +65,7 @@ void cmCTestRunTest::CheckOutput(std::string const& line)
   }
 }
 
-bool cmCTestRunTest::EndTest(size_t completed, size_t total, bool started)
+int cmCTestRunTest::EndTest(size_t completed, size_t total, bool started)
 {
   this->WriteLogOutputTop(completed, total);
   std::string reason;
@@ -311,7 +311,16 @@ bool cmCTestRunTest::EndTest(size_t completed, size_t total, bool started)
     this->TestHandler->TestResults.push_back(this->TestResult);
   }
   this->TestProcess.reset();
-  return passed || skipped;
+
+  if(skipped && this->TestResult.ReturnValue == 0)
+  {
+    return -1;
+  } else if(passed || skipped )
+  {
+    return true;
+  } else {
+    return false;
+  }
 }
 
 bool cmCTestRunTest::StartAgain(size_t completed)
@@ -468,6 +477,19 @@ bool cmCTestRunTest::StartTest(size_t completed, size_t total)
     this->TestResult.Status = cmCTestTestHandler::NOT_RUN;
     this->TestProcess = cm::make_unique<cmProcess>(*this);
     this->TestResult.Output = "Disabled";
+    this->TestResult.FullCommandLine.clear();
+    return false;
+  }
+
+  // Check for skipped fixture dependencies before we even look at the command
+  // arguments because if we are not going to run the test, the command and
+  // its arguments are irrelevant. This matters for when we are doing smart
+  // incremental testing and want to only run a subset of tests
+  if (!this->SkippedDependencies.empty()) {
+    this->TestResult.CompletionStatus = "SKIP_CODE_DIDNT_CHANGE";
+    this->TestResult.Status = cmCTestTestHandler::NOT_RUN;
+    this->TestProcess = cm::make_unique<cmProcess>(*this);
+    this->TestResult.Output = "Skipped";
     this->TestResult.FullCommandLine.clear();
     return false;
   }

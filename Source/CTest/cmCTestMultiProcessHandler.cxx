@@ -139,7 +139,7 @@ void cmCTestMultiProcessHandler::RunTests()
   uv_loop_close(&this->Loop);
 
   if (!this->StopTimePassed) {
-    assert(this->Completed == this->Total);
+    // assert(this->Completed == this->Total);
     assert(this->Tests.empty());
   }
   assert(this->AllResourcesAvailable());
@@ -189,6 +189,13 @@ bool cmCTestMultiProcessHandler::StartTestProcess(int test)
   for (std::string const& f : *this->Failed) {
     if (cmContains(this->Properties[test]->RequireSuccessDepends, f)) {
       testRun->AddFailedDependency(f);
+    }
+  }
+
+  // Find any skipped dependencies for this test.
+  for (std::string const& f : *this->Skipped) {
+    if (cmContains(this->Properties[test]->RequireSuccessDepends, f)) {
+      testRun->AddSkippedDependency(f);
     }
   }
 
@@ -580,7 +587,7 @@ void cmCTestMultiProcessHandler::FinishTestProcess(cmCTestRunTest* runner,
   int test = runner->GetIndex();
   auto properties = runner->GetTestProperties();
 
-  bool testResult = runner->EndTest(this->Completed, this->Total, started);
+  int testResult = runner->EndTest(this->Completed, this->Total, started);
   if (runner->TimedOutForStopTime()) {
     this->SetStopTimePassed();
   }
@@ -591,8 +598,10 @@ void cmCTestMultiProcessHandler::FinishTestProcess(cmCTestRunTest* runner,
     }
   }
 
-  if (testResult) {
+  if (testResult == 1) {
     this->Passed->push_back(properties->Name);
+  } else if (testResult == -1) {
+    this->Skipped->push_back(properties->Name);
   } else if (!properties->Disabled) {
     this->Failed->push_back(properties->Name);
   }

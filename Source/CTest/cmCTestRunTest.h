@@ -54,6 +54,10 @@ public:
   {
     this->FailedDependencies.insert(failedTest);
   }
+  void AddSkippedDependency(const std::string& skippedTest)
+  {
+    this->SkippedDependencies.insert(skippedTest);
+  }
 
   std::string GetProcessOutput() { return this->ProcessOutput; }
 
@@ -68,7 +72,7 @@ public:
   // launch the test process, return whether it started correctly
   bool StartTest(size_t completed, size_t total);
   // capture and report the test results
-  bool EndTest(size_t completed, size_t total, bool started);
+  int EndTest(size_t completed, size_t total, bool started);
   // Called by ctest -N to log the command string
   void ComputeArguments();
 
@@ -129,6 +133,7 @@ private:
   cmCTestMultiProcessHandler& MultiTestHandler;
   int Index;
   std::set<std::string> FailedDependencies;
+  std::set<std::string> SkippedDependencies;
   std::string StartTime;
   std::string ActualCommand;
   std::vector<std::string> Arguments;
