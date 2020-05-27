@@ -357,11 +357,16 @@ int cmCTestScriptHandler::ReadInScript(const std::string& total_script_arg)
   }
 
   // finally read in the script
-  if (!this->Makefile->ReadListFile(script) ||
-      cmSystemTools::GetErrorOccuredFlag()) {
+  const bool script_valid = this->Makefile->ReadListFile(script);
+
+  // Reset the error flag so that it can run more than
+  // one script with an error when you use ctest_run_script.
+  const bool fatal_error = cmSystemTools::GetFatalErrorOccured();
+  cmSystemTools::ResetErrorOccuredFlag();
+
+  if (!script_valid || fatal_error) {
     // Reset the error flag so that it can run more than
     // one script with an error when you use ctest_run_script.
-    cmSystemTools::ResetErrorOccuredFlag();
     return 2;
   }
 
