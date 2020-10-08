@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <iostream>
 #include <iterator>
 #include <queue>
 #include <sstream>
@@ -688,6 +689,21 @@ const char* cmGeneratorTarget::GetFileSuffixInternal(
   return targetSuffix ? targetSuffix->c_str() : nullptr;
 }
 
+namespace {
+struct EvaluatedTargetPropertyState
+{
+  std::vector<std::string> Values;
+  bool ContextDependent = false;
+};
+
+std::map<std::string, EvaluatedTargetPropertyState> object_cache;
+
+void clear_object_cache()
+{
+  object_cache.clear();
+}
+}
+
 void cmGeneratorTarget::ClearSourcesCache()
 {
   this->AllConfigSources.clear();
@@ -695,6 +711,7 @@ void cmGeneratorTarget::ClearSourcesCache()
   this->SourcesAreContextDependent = Tribool::Indeterminate;
   this->Objects.clear();
   this->VisitedConfigsForObjects.clear();
+  clear_object_cache();
 }
 
 void cmGeneratorTarget::AddSourceCommon(const std::string& src, bool before)
@@ -1489,6 +1506,31 @@ void AddInterfaceEntries(cmGeneratorTarget const* headTarget,
   }
 }
 
+void do_vecs_match(std::vector<std::string> const& a,
+                   std::vector<std::string> const& b)
+{
+  if (a.size() != b.size()) {
+    std::cout << "a.size(): " << a.size() << "\n";
+    std::cout << "b.size(): " << b.size() << "\n";
+    return;
+  }
+
+  for (std::size_t i = 0; i < a.size(); ++i) {
+    if (a[i] != b[i]) {
+      std::cout << "a[" << i << "]: " << a[i] << "\n";
+      std::cout << "b[" << i << "]: " << b[i] << "\n";
+      return;
+    }
+  }
+}
+
+void dump_vec(std::vector<std::string> const& a)
+{
+  for (std::size_t i = 0; i < a.size(); ++i) {
+    std::cout << "a[" << i << "]: " << a[i] << "\n";
+  }
+}
+
 void AddObjectEntries(cmGeneratorTarget const* headTarget,
                       std::string const& config,
                       cmGeneratorExpressionDAGChecker* dagChecker,
@@ -1503,19 +1545,46 @@ void AddObjectEntries(cmGeneratorTarget const* headTarget,
         std::string uniqueName =
           headTarget->GetGlobalGenerator()->IndexGeneratorTargetUniquely(
             lib.Target);
-        std::string genex = "$<TARGET_OBJECTS:" + std::move(uniqueName) + ">";
-        cmGeneratorExpression ge(lib.Backtrace);
-        std::unique_ptr<cmCompiledGeneratorExpression> cge = ge.Parse(genex);
-        cge->SetEvaluateForBuildsystem(true);
 
-        EvaluatedTargetPropertyEntry ee(lib, lib.Backtrace);
-        cmExpandList(cge->Evaluate(headTarget->GetLocalGenerator(), config,
-                                   headTarget, dagChecker),
-                     ee.Values);
-        if (cge->GetHadContextSensitiveCondition()) {
-          ee.ContextDependent = true;
+        auto cacheIter = object_cache.find(uniqueName);
+        if (cacheIter != object_cache.end()) {
+
+          EvaluatedTargetPropertyEntry ee(lib, lib.Backtrace);
+          ee.Values = cacheIter->second.Values;
+          ee.ContextDependent = cacheIter->second.ContextDependent;
+          // dump_vec(cacheIter->second.Values);
+          entries.Entries.emplace_back(std::move(ee));
+          continue;
         }
-        entries.Entries.emplace_back(std::move(ee));
+
+        {
+          std::string genex = "$<TARGET_OBJECTS:" + uniqueName + ">";
+          cmGeneratorExpression ge(lib.Backtrace);
+          std::unique_ptr<cmCompiledGeneratorExpression> cge = ge.Parse(genex);
+          cge->SetEvaluateForBuildsystem(true);
+
+          EvaluatedTargetPropertyEntry ee(lib, lib.Backtrace);
+          cmExpandList(cge->Evaluate(headTarget->GetLocalGenerator(), config,
+                                     headTarget, dagChecker),
+                       ee.Values);
+          if (cge->GetHadContextSensitiveCondition()) {
+            ee.ContextDependent = true;
+          }
+          object_cache[uniqueName] =
+            EvaluatedTargetPropertyState{ ee.Values, ee.ContextDependent };
+
+          // auto cacheIter = object_cache.find(uniqueName);
+          // if( cacheIter != object_cache.end()) {
+          //   std::cout << "cache hit" << std::endl;
+          //   do_vecs_match(ee.Values, cacheIter->second.Values );
+          //   if(ee.ContextDependent != cacheIter->second.ContextDependent)
+          //   {
+          //     std::cout << "ContextDependent don't match" << std::endl;
+          //   }
+          // }
+          // dump_vec(ee.Values);
+          entries.Entries.emplace_back(std::move(ee));
+        }
       }
     }
   }
